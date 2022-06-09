@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:agenda_eletronica/create_contact_provider.dart';
+import 'package:agenda_eletronica/models/contact.dart';
 import 'package:day_night_time_picker/day_night_time_picker.dart';
 import 'package:day_night_time_picker/lib/constants.dart';
 import 'package:flutter/cupertino.dart';
@@ -6,59 +9,48 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class CreateContact extends StatelessWidget {
-  const CreateContact({Key? key}) : super(key: key);
+  const CreateContact({Key? key, this.contact}) : super(key: key);
+
+  final Contact? contact;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (c) => CreateContactProvider(),
+      create: (c) => CreateContactProvider(
+        c,
+        contact,
+      ),
       child: Consumer<CreateContactProvider>(
         builder: (context, provider, child) {
           return Scaffold(
             appBar: AppBar(
-              title: const Center(
-                child: Text("Novo contato"),
+              title: Center(
+                child: getContactState(provider),
               ),
               elevation: 0,
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text(
-                    "OK",
-                    style: TextStyle(
-                      color: Colors.white,
-                    ),
-                  ),
-                )
-              ],
+              actions: [getActionButton(context, provider)],
             ),
             body: Center(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    const Icon(
-                      Icons.account_circle,
-                      size: 150,
-                      color: Colors.grey,
-                    ),
+                    getProfileImage(provider),
                     Padding(
                       padding: const EdgeInsets.all(10.0),
                       child: Column(
                         children: [
-                          textFieldToWidget('Nome'),
-                          textFieldToWidget('Sobrenome'),
-                          textFieldToWidget('Telefone 1'),
-                          textFieldToWidget('Telefone 2'),
-                          textFieldToWidget('Email'),
-                          textFieldToWidget('Empresa'),
+                          textFieldToWidget('Nome', provider.firstNameController),
+                          textFieldToWidget('Sobrenome', provider.surname),
+                          textFieldToWidget('Telefone 1', provider.phone1),
+                          textFieldToWidget('Telefone 2', provider.phone2),
+                          textFieldToWidget('Email', provider.emailController),
                           const SizedBox(
                             height: 10,
                           ),
                           getAddressPanel(provider, context),
                           getBirthdayPanel(provider, context),
-                          getReminderPanel(provider, context),
+                          getRemainderPanel(provider, context),
+                          getDeleteButton(context, provider)
                         ],
                       ),
                     ),
@@ -70,6 +62,83 @@ class CreateContact extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Text getContactState(CreateContactProvider provider) {
+    if (provider.isEditing) {
+      return const Text("Contato");
+    } else {
+      return const Text("Novo contato");
+    }
+  }
+
+  Widget getDeleteButton(BuildContext context, CreateContactProvider provider) {
+    if (provider.isEditing) {
+      return Column(
+        children: [
+          const Divider(),
+          TextButton(
+            onPressed: () async {
+              await context.read<CreateContactProvider>().deleteContact();
+            },
+            child: const Text(
+              'Apagar contato',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 17,
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
+  }
+
+  Widget getActionButton(BuildContext context, CreateContactProvider provider) {
+    if (provider.isSaving) {
+      return const Center(
+          child: CircularProgressIndicator(
+        color: Colors.white,
+      ));
+    } else {
+      return TextButton(
+        onPressed: () {
+          context.read<CreateContactProvider>().onTap();
+        },
+        child: const Text(
+          "Salvar",
+          style: TextStyle(
+            color: Colors.white,
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget getProfileImage(CreateContactProvider provider) {
+    if (provider.image == null) {
+      return IconButton(
+        iconSize: 150,
+        icon: const Icon(
+          Icons.account_circle,
+          color: Colors.grey,
+        ),
+        onPressed: provider.pickImage,
+      );
+    } else {
+      return InkWell(
+        onTap: provider.pickImage,
+        child: Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: CircleAvatar(
+            foregroundImage: Image.file(File(provider.image!)).image,
+            radius: 75,
+          ),
+        ),
+      );
+    }
   }
 
   Widget getAddressPanel(CreateContactProvider provider, BuildContext context) {
@@ -103,21 +172,21 @@ class CreateContact extends StatelessWidget {
               ),
             ),
           ),
-          textFieldToWidget('CEP'),
+          textFieldToWidget('CEP', provider.zipCode),
           Row(
             children: [
               Expanded(
                 flex: 2,
-                child: textFieldToWidget('Cidade'),
+                child: textFieldToWidget('Cidade', provider.city),
               ),
               Expanded(
-                child: textFieldToWidget('UF'),
+                child: textFieldToWidget('UF', provider.uf),
               ),
             ],
           ),
-          textFieldToWidget('Logradouro'),
-          textFieldToWidget('Número'),
-          textFieldToWidget('Complemento'),
+          textFieldToWidget('Logradouro', provider.street),
+          textFieldToWidget('Número', provider.houseNumber),
+          textFieldToWidget('Complemento', provider.complement),
         ],
       );
     } else {
@@ -169,21 +238,12 @@ class CreateContact extends StatelessWidget {
             height: 180,
             child: CupertinoDatePicker(
               mode: CupertinoDatePickerMode.date,
-              initialDateTime: provider.dateTime,
-              onDateTimeChanged: (dateTime) {},
+              initialDateTime: DateTime.now(),
+              onDateTimeChanged: (dateTime) {
+                context.read<CreateContactProvider>().selectedBirthDate = dateTime;
+              },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                style: ButtonStyle(elevation: MaterialStateProperty.all(0)),
-                onPressed: () {},
-                child: const Text('Salvar'),
-              ),
-            ),
-          )
         ],
       );
     } else {
@@ -200,8 +260,8 @@ class CreateContact extends StatelessWidget {
     }
   }
 
-  Widget getReminderPanel(CreateContactProvider provider, BuildContext context) {
-    if (provider.hasReminder) {
+  Widget getRemainderPanel(CreateContactProvider provider, BuildContext context) {
+    if (provider.hasRemainder) {
       return Column(
         children: [
           Align(
@@ -219,7 +279,7 @@ class CreateContact extends StatelessWidget {
                   ),
                   IconButton(
                     onPressed: () {
-                      context.read<CreateContactProvider>().hasReminder = false;
+                      context.read<CreateContactProvider>().hasRemainder = false;
                     },
                     icon: const Icon(
                       Icons.remove_circle,
@@ -235,8 +295,9 @@ class CreateContact extends StatelessWidget {
             height: 100,
             child: CupertinoDatePicker(
               mode: CupertinoDatePickerMode.date,
-              initialDateTime: provider.dateTime,
-              onDateTimeChanged: (dateTime) {},
+              onDateTimeChanged: (dateTime) {
+                context.read<CreateContactProvider>().selectedRemainderDate = dateTime;
+              },
             ),
           ),
           createInlinePicker(
@@ -244,30 +305,22 @@ class CreateContact extends StatelessWidget {
             cancelText: '',
             elevation: 1,
             value: TimeOfDay.now().replacing(hour: 11, minute: 30),
-            onChange: (m) {},
+            onChange: (t) {
+              context.read<CreateContactProvider>().selectRemainderTime(t);
+            },
+            isOnChangeValueMode: true,
             minuteInterval: MinuteInterval.FIVE,
             iosStylePicker: true,
-            minHour: 9,
-            maxHour: 21,
+            minHour: 7,
+            maxHour: 23,
             is24HrFormat: false,
           ),
-          Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                style: ButtonStyle(elevation: MaterialStateProperty.all(0)),
-                onPressed: () {},
-                child: const Text('Salvar'),
-              ),
-            ),
-          )
         ],
       );
     } else {
       return ListTile(
         onTap: () {
-          context.read<CreateContactProvider>().hasReminder = true;
+          context.read<CreateContactProvider>().hasRemainder = true;
         },
         leading: const Icon(
           Icons.add_circle,
@@ -278,10 +331,11 @@ class CreateContact extends StatelessWidget {
     }
   }
 
-  Widget textFieldToWidget(String title) {
+  Widget textFieldToWidget(String title, TextEditingController controller) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: TextField(
+        controller: controller,
         decoration: InputDecoration(
           hintText: title,
           hintStyle: const TextStyle(

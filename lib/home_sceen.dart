@@ -1,4 +1,5 @@
-import 'package:agenda_eletronica/create_contact.dart';
+import 'dart:io';
+
 import 'package:agenda_eletronica/home_sceen_provider.dart';
 import 'package:agenda_eletronica/models/contact.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +11,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (c) => HomeScreenProvider(),
+      create: (c) => HomeScreenProvider(c),
       child: Consumer<HomeScreenProvider>(builder: (context, provider, child) {
         return Scaffold(
           appBar: AppBar(
@@ -21,15 +22,7 @@ class HomeScreen extends StatelessWidget {
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (c) {
-                  return ChangeNotifierProvider.value(
-                    value: provider,
-                    child: const CreateContact(),
-                  );
-                }),
-              );
+              context.read<HomeScreenProvider>().createContact();
             },
             child: const Icon(Icons.add),
           ),
@@ -37,7 +30,7 @@ class HomeScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(10.0),
               child: Column(
-                children: <Widget>[
+                children: [
                   Padding(
                     padding: const EdgeInsets.all(10.0),
                     child: TextField(
@@ -47,11 +40,36 @@ class HomeScreen extends StatelessWidget {
                         hintText: 'Buscar',
                         border: InputBorder.none,
                       ),
+                      onChanged: (a) {
+                        context.read<HomeScreenProvider>().searchContacts();
+                      },
                     ),
                   ),
-                  ...provider.contacts.map((e) {
-                    return contactToWidget(e);
-                  }),
+                  Expanded(
+                    child: FutureBuilder<Iterable<Contact>>(
+                      builder: (context, snap) {
+                        if (snap.hasData) {
+                          return SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: Column(
+                              children: <Widget>[
+                                ...snap.requireData.map(
+                                  (e) {
+                                    return contactToWidget(context, e);
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        } else if (snap.hasError) {
+                          return Text('${snap.error}');
+                        } else {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                      },
+                      future: provider.filteredContacts,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -61,20 +79,22 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget contactToWidget(Contact contact) {
+  Widget contactToWidget(BuildContext context, Contact contact) {
     return GestureDetector(
       child: ListTile(
-        leading: const CircleAvatar(
-          child: Icon(
-            Icons.person,
-            color: Colors.white,
-            size: 30,
-          ),
+        onTap: () {
+          context.read<HomeScreenProvider>().editingButton(contact);
+        },
+        leading: CircleAvatar(
+          backgroundColor: Colors.transparent,
+          child: getImageContact(contact),
         ),
         title: Text(contact.name),
-        subtitle: Text(contact.phone),
+        subtitle: Text(contact.phones[0]),
         trailing: IconButton(
-          onPressed: () {},
+          onPressed: () {
+            context.read<HomeScreenProvider>().editingButton(contact);
+          },
           icon: const Icon(
             Icons.edit_rounded,
             color: Colors.black,
@@ -82,6 +102,36 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget getImageContact(Contact contact) {
+    return FutureBuilder<String?>(
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.done) {
+          if (snap.data == null) {
+            return const Icon(
+              Icons.account_circle,
+              color: Colors.deepPurple,
+              size: 40,
+            );
+          } else {
+            return CircleAvatar(
+              foregroundImage: Image.file(File(snap.data!)).image,
+              radius: 75,
+            );
+          }
+        } else if (snap.hasError) {
+          return const Icon(
+            Icons.account_circle,
+            color: Colors.red,
+            size: 40,
+          );
+        } else {
+          return const Center(child: CircularProgressIndicator());
+        }
+      },
+      future: contact.safeImage,
     );
   }
 }
