@@ -109,6 +109,8 @@ class CreateContactProvider with ChangeNotifier {
           androidAllowWhileIdle: true,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime);
       Navigator.pop(context);
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       isSaving = false;
     }
