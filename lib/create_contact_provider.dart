@@ -9,7 +9,15 @@ import 'package:timezone/timezone.dart' as tz;
 
 class CreateContactProvider with ChangeNotifier {
   DateTime? selectedBirthDate;
-  DateTime? selectedRemainderDate;
+  DateTime? _selectedRemainderDate;
+
+  DateTime? get selectedRemainderDate => _selectedRemainderDate;
+
+  set selectedRemainderDate(DateTime? selectedRemainderDate) {
+    _selectedRemainderDate = selectedRemainderDate;
+    debugPrint('...');
+  }
+
   BuildContext context;
   final Contact? contact;
   String? _image;
@@ -96,7 +104,6 @@ class CreateContactProvider with ChangeNotifier {
           'Lembrete!',
           'Ligar para $name',
           tz.TZDateTime.from(selectedRemainderDate!, tz.local),
-          //tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5)),
           const NotificationDetails(
               android: AndroidNotificationDetails('your channel id', 'your channel name', channelDescription: 'your channel description')),
           androidAllowWhileIdle: true,
